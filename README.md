@@ -3,7 +3,7 @@ This project is a simple web scraper that uses Jekyll to serve a Github Page loc
 
 ## Installation
 ### Install Jekyll
-YOu can follow this [link](https://jekyllrb.com/docs/installation/) to install Jekyll on any platform.
+You can follow this [link](https://jekyllrb.com/docs/installation/) to install Jekyll on any platform.
 
 On Ubuntu, simply run the following commands:
 ```bash
@@ -23,6 +23,9 @@ gem install jekyll bundler
 ```
 
 ## Runninng the project
+### Add secrets in the environment
+Create a `.env` file in the root of the project and add the missing secrets by following the `.env.example` file.
+
 ### Serving a Github Page locally with Jekyll
 To serve a Github Page locally, you need to have Jekyll installed. Then, you can run the following command:
 ```bash

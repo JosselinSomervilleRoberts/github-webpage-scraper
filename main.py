@@ -1,17 +1,23 @@
 import requests
+import os
+from dotenv import load_dotenv
 
-# Replace 'your_token_here' with your GitHub personal access token
+load_dotenv()
+
+# Looks for token in .env file
 headers = {
-    "Authorization": "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",
+    "Authorization": os.getenv("GITHUB_TOKEN"),
     "Accept": "application/vnd.github+json",
 }
 
 # Search for repositories with 'github.io' in their name
-search_query = "github.io in:name"
 
 
-def search_github_repos(query: str, limits: int = 100):
-    url = f"https://api.github.com/search/repositories?q={query}&per_page=100"
+def search_github_repos(max_size_kb: int, limits: int = 100):
+    search_query = f"github.io in:name size:{max_size_kb}"
+    url = (
+        f"https://api.github.com/search/repositories?q={search_query}&per_page={limits}"
+    )
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         return response.json()["items"]
@@ -20,7 +26,7 @@ def search_github_repos(query: str, limits: int = 100):
         return []
 
 
-repos = search_github_repos(search_query)
+repos = search_github_repos(10, limits=10)
 
 for repo in repos:
     print(repo["full_name"], repo["html_url"])
