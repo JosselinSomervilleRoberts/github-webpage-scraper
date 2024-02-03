@@ -26,11 +26,11 @@ class Action(ABC):
         pass
 
     @staticmethod
-    def get_random_action(driver: webdriver.Chrome):
+    def get_random_action(driver: webdriver.Chrome, *args, **kwargs) -> "Action":
         """Randomly choose an action type and return its get_random_action result"""
         action_classes: List["Action"] = [ClickAction, ScrollAction]
         chosen_action_class = random.choice(action_classes)
-        return chosen_action_class.get_random_action(driver)
+        return chosen_action_class.get_random_action(driver, *args, **kwargs)
 
     def __repr__(self) -> str:
         return f"Action({self.action_type}, {self.argument})"
@@ -55,9 +55,15 @@ class ClickAction(Action):
         driver.get(self.argument)
 
     @staticmethod
-    def get_random_action(driver: webdriver.Chrome) -> "ClickAction":
+    def get_random_action(
+        driver: webdriver.Chrome, port: int, *args, **kwargs
+    ) -> "ClickAction":
         """Get a random click action"""
-        clickables: List[str] = filter_clickable_elts(find_clickable_elts(driver))
+        clickables: List[str] = filter_clickable_elts(
+            find_clickable_elts(driver), url=f"http://localhost:{port}"
+        )
+        if len(clickables) == 0:
+            return ClickAction(argument=f"http://localhost:{port}")
         link: str = random.choice(clickables)
         return ClickAction(argument=link)
 
@@ -80,7 +86,7 @@ class ScrollAction(Action):
             driver.execute_script("window.scrollTo(0, 0)")
 
     @staticmethod
-    def get_random_action(driver: webdriver.Chrome) -> "ScrollAction":
+    def get_random_action(driver: webdriver.Chrome, *args, **kwargs) -> "ScrollAction":
         """Get a random scroll action"""
         options: List[str] = [ScrollAction.BOTTOM, ScrollAction.TOP, "random"]
         option: str = random.choice(options)

@@ -2,6 +2,7 @@ import subprocess
 import os
 import signal
 from typing import Optional
+import time
 
 
 class JekyllServer:
@@ -34,6 +35,7 @@ class JekyllServer:
         """Start the Jekyll server in a separate process."""
         self.setup_gemfile()
         command = f"cd {self.repo_path} && bundle install && bundle exec jekyll serve --port {self.port}"
+        # os.system(command)
         self.process = subprocess.Popen(
             command,
             shell=True,
@@ -42,15 +44,37 @@ class JekyllServer:
             preexec_fn=os.setsid,
         )
         if self.verbose:
-            print("Jekyll server started.")
+            print(f"Jekyll server started at http://localhost:{self.port}")
 
-    def stop(self):
-        """Stop the Jekyll server and terminate the process."""
+    def stop(self, timeout=5):
+        """Stop the Jekyll server and terminate the process with a timeout.
+
+        Args:
+            timeout (int, optional): Time to wait for the server to gracefully shut down. Defaults to 5 seconds.
+        """
         if self.process:
-            os.killpg(
-                os.getpgid(self.process.pid), signal.SIGTERM
-            )  # Send SIGTERM to the process group
+            # Try to terminate the process group gracefully
+            os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
             self.process.terminate()
+
+            # Wait for the process to end, checking periodically
+            try:
+                # Wait up to `timeout` seconds for process to terminate
+                for _ in range(timeout):
+                    if self.process.poll() is not None:  # Process has terminated
+                        break
+                    time.sleep(1)  # Wait a bit before checking again
+                else:
+                    # If the process is still alive after the timeout, kill it
+                    os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                    self.process.kill()
+                    self.process.wait()  # Wait for process to be killed
+                    if self.verbose:
+                        print("Jekyll server forcefully stopped.")
+            except Exception as e:
+                if self.verbose:
+                    print(f"Error stopping the Jekyll server: {e}")
+
             self.process = None
             if self.verbose:
                 print("Jekyll server stopped.")
@@ -72,7 +96,6 @@ def main(path: str, repo_name: str):
     # Start the Jekyll server
     server = JekyllServer(f"{path}/{repo_name}", verbose=True)
     server.start()
-    print(f"Jekyll server started at http://localhost:{server.port}")
 
     # Stop the Jekyll server after delay_alive seconds
     print(f"Keeping the server alive for {delay_alive} seconds...")

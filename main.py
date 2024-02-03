@@ -1,84 +1,64 @@
-import requests
 import os
-from dotenv import load_dotenv
-from typing import Optional
-from datetime import datetime
+import time
+import datetime
 
-load_dotenv()
-
-# Looks for token in .env file
-headers = {
-    "Authorization": os.getenv("GITHUB_TOKEN"),
-    "Accept": "application/vnd.github+json",
-}
-
-# Search for repositories with 'github.io' in their name
+from deployment.server import JekyllServer
+from fetcher.search import clone_repo, search_github_repos
+from renderer.driver import save_random_screenshot, ScreenshotOptions
 
 
-def search_github_repos(
-    created_after: datetime,
-    language: Optional[str] = None,
-    max_size_kb: int = 1000,
-    limits: int = 100,
-):
-    query_parameters = {
-        "size": f"<={max_size_kb}",
-        "created": f">={created_after.strftime('%Y-%m-%d')}",
-    }
-    if language:
-        query_parameters["language"] = language
-    search_query = "github.io in:name "
-    search_query += " ".join(
-        [f"{key}:{value}" for key, value in query_parameters.items()]
-    )
-    url = (
-        f"https://api.github.com/search/repositories?q={search_query}&per_page={limits}"
-    )
-    print("Searching for repositories with the following query:", url)
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()["items"]
-    else:
-        print("Failed to retrieve data:", response.status_code)
-        return []
+def main():
+    path: str = os.path.dirname(os.path.realpath(__file__))
+    path = os.path.join(path, "repos")
 
-
-def clone_repo(repo_url: str, download_path: str, repo_name: str):
-    os.system(f"git clone {repo_url} {download_path}/{repo_name}")
-
-
-def setup_gemfile(repo_path: str):
-    # Check if Gemfile exists, if not, copy Gemfile.default to Gemfile
-    if not os.path.exists(f"{repo_path}/Gemfile"):
-        os.system(f"cp Gemfile.default {repo_path}/Gemfile")
-        return
-
-    # Gemfile exists, check if it has the jekyll gem
-    if "jekyll" in open(f"{repo_path}/Gemfile").read():
-        # TODO: figure out if we need to do anything here
-        return
-
-    # Gemfile exists, but doesn't have jekyll gem
-    with open(f"{repo_path}/Gemfile", "a") as file:
-        file.write('gem "jekyll", "~> 4.3.3"')
-
-
-def serve_repo(repo_path: str):
-    setup_gemfile(repo_path)
-    os.system(f"cd {repo_path} && bundle install && bundle exec jekyll serve")
-
-
-if __name__ == "__main__":
-    print("Searching for repositories...")
+    # Search for GitHub pages repositories
     repos = search_github_repos(
-        created_after=datetime(2024, 1, 1),
+        created_after=datetime.datetime(2021, 1, 1),
         language="HTML",
         max_size_kb=1000,
         limits=10,
+        verbose=True,
     )
-    print(f"Found {len(repos)} repositories\n")
 
+    # Clone the repositories and start the Jekyll server
     for i, repo in enumerate(repos):
-        print(f"{i+1}. {repo['full_name']} - {repo['html_url']}")
-        clone_repo(repo["clone_url"], "repos", f"{i}_{repo['name']}")
-        serve_repo(f"repos/{i}_{repo['name']}")
+        print("\n" + "=" * 50)
+        repo_name = f"{i}_{repo['name']}"
+        clone_url = repo["clone_url"]
+        port = 4000  # + i
+        print(f"Cloning {clone_url} to {path}/{repo_name}")
+        clone_repo(clone_url, path, repo_name)
+
+        # Start the Jekyll server
+        server = JekyllServer(f"{path}/{repo_name}", verbose=True)
+        server.start()
+
+        # Sleep to let the server start
+        time_sleeping: int = 10
+        print(f"Sleeping for {time_sleeping} seconds to let the server start...")
+        time.sleep(time_sleeping)
+
+        # Take a screenshot of a random page
+        try:
+            actions = save_random_screenshot(f"screenshot_{repo_name}.png", port=port)
+        except Exception as e:
+            print(f"Failed to take a screenshot: {e}")
+            actions = []
+
+        # Print the actions performed
+        if actions:
+            print(f"Actions performed to take the screenshot of {repo_name}:")
+            for j, action in enumerate(actions):
+                print(f"{j + 1}. {action}")
+
+        # Stop the Jekyll server
+        server.stop()
+        time.sleep(2)
+
+        # Delete the repository
+        # print(f"Deleting {path}/{repo_name}")
+        # os.system(f"rm -rf {path}/{repo_name}")
+
+
+if __name__ == "__main__":
+    main()

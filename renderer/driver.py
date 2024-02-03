@@ -13,6 +13,7 @@ def init_driver(
 
     Args:
         url (str, optional): The URL of the website. Defaults to "http://localhost:4000".
+        resolution (tuple[int, int], optional): The resolution of the WebDriver. Defaults to (1920, 1080).
 
     Returns:
         webdriver.Chrome: The Chrome WebDriver
@@ -52,13 +53,14 @@ class ScreenshotOptions:
 
 
 def save_random_screenshot(
-    path: str, options: ScreenshotOptions = ScreenshotOptions()
+    path: str, options: ScreenshotOptions = ScreenshotOptions(), port: int = 4000
 ) -> List[Action]:
     """Save a screenshot of a random page
 
     Args:
         path (str): The path to save the screenshot
         options (ScreenshotOptions, optional): The options to use for taking the screenshot. Defaults to ScreenshotOptions().
+        port (int, optional): The port to use for the website. Defaults to 4000.
 
     Returns:
         List[Action]: A list of actions performed to take the screenshot
@@ -71,7 +73,9 @@ def save_random_screenshot(
 
     driver: webdriver.Chrome
     try:
-        driver = init_driver(resolution=options.resolution)
+        driver = init_driver(
+            url=f"http://localhost:{port}", resolution=options.resolution
+        )
     except selenium.common.exceptions.WebDriverException as e:
         raise Exception(f"Failed to initialize the driver: {e}")
     except Exception as e:
@@ -79,7 +83,7 @@ def save_random_screenshot(
 
     num_actions = random.randint(*options.num_actions_range)
     actions: List[Action] = [
-        Action.get_random_action(driver) for _ in range(num_actions)
+        Action.get_random_action(driver, port) for _ in range(num_actions)
     ]
     actions = list(set(actions))
     for action in actions:
