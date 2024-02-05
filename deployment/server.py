@@ -3,6 +3,7 @@ import os
 import signal
 from typing import Optional
 import time
+import socket
 
 
 class JekyllServer:
@@ -31,20 +32,60 @@ class JekyllServer:
             if self.verbose:
                 print("Added jekyll gem to Gemfile")
 
+    def is_port_in_use(self, port):
+        """Check if a port is in use on localhost."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(("localhost", port)) == 0
+
+    def kill_process_using_port(self, port):
+        """Find and kill the process using the specified port."""
+        command = f"lsof -ti:{port} | xargs kill -9"
+        os.system(command)
+        if self.verbose:
+            print(f"Killed process using port {port}.")
+
     def start(self):
-        """Start the Jekyll server in a separate process."""
+        """Start the Jekyll server in a separate process and monitor the output."""
+        if self.is_port_in_use(self.port):
+            if self.verbose:
+                print(f"Port {self.port} is in use. Attempting to free it.")
+            self.kill_process_using_port(self.port)
+
         self.setup_gemfile()
-        command = f"cd {self.repo_path} && bundle install && bundle exec jekyll serve --port {self.port}"
-        # os.system(command)
+        command_install = f"cd {self.repo_path} && bundle install"
+        os.system(command_install)
+
+        command_serve = (
+            f"cd {self.repo_path} && bundle exec jekyll serve --port {self.port}"
+        )
         self.process = subprocess.Popen(
-            command,
+            command_serve,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             preexec_fn=os.setsid,
+            encoding="utf-8",  # This ensures stdout and stderr are strings
         )
-        if self.verbose:
-            print(f"Jekyll server started at http://localhost:{self.port}")
+
+        while True:
+            # Stream the output
+            output = self.process.stdout.readline()
+            if output == "" and self.process.poll() is not None:
+                break
+            if output:
+                print(output.strip())
+                if "Server is running.. press ctrl-c to stop." in output.strip():
+                    if self.verbose:
+                        print(f"Jekyll server started at http://localhost:{self.port}")
+                    break  # Server started successfully
+
+            # Check stderr for any immediate errors
+            error_output = self.process.stderr.readline()
+            if error_output:
+                pass
+                # print(f"Error: {error_output.strip()}")
+                # # Here, you can parse the error and take action accordingly
+                # break
 
     def stop(self, timeout=5):
         """Stop the Jekyll server and terminate the process with a timeout.
