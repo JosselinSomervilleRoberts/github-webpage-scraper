@@ -32,6 +32,14 @@ class JekyllServer:
             if self.verbose:
                 print("Added jekyll gem to Gemfile")
 
+    def setup_config(self):
+        # Check if _config.yml exists, if not, copy _config.default.yml to _config.yml
+        if not os.path.exists(f"{self.repo_path}/_config.yml"):
+            os.system(f"cp _config.default.yml {self.repo_path}/_config.yml")
+            if self.verbose:
+                print("Copied _config.default.yml to _config.yml")
+            return
+
     def is_port_in_use(self, port):
         """Check if a port is in use on localhost."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -52,6 +60,7 @@ class JekyllServer:
             self.kill_process_using_port(self.port)
 
         self.setup_gemfile()
+        self.setup_config()
         command_install = f"cd {self.repo_path} && bundle install"
         os.system(command_install)
 
@@ -83,7 +92,7 @@ class JekyllServer:
             error_output = self.process.stderr.readline()
             if error_output:
                 pass
-                # print(f"Error: {error_output.strip()}")
+                print(f"Error: {error_output.strip()}")
                 # # Here, you can parse the error and take action accordingly
                 # break
 
