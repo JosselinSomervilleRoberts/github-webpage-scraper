@@ -11,6 +11,7 @@ def search_github_repos(
     language: Optional[str] = None,
     max_size_kb: int = 1000,
     limits: int = 100,
+    page: int = 1,
     verbose: bool = False,
 ) -> List[Dict[str, Any]]:
     """Search for GitHub pages repositories
@@ -20,6 +21,7 @@ def search_github_repos(
         language (Optional[str], optional): The language to search for. Defaults to None.
         max_size_kb (int, optional): The maximum size of the repository in KB. Defaults to 1000.
         limits (int, optional): The maximum number of repositories to retrieve. Defaults to 100.
+        page (int, optional): The page number. Defaults to 1.
         verbose (bool, optional): Whether to print the search query. Defaults to False.
 
     Returns:
@@ -38,9 +40,7 @@ def search_github_repos(
     search_query += " ".join(
         [f"{key}:{value}" for key, value in query_parameters.items()]
     )
-    url = (
-        f"https://api.github.com/search/repositories?q={search_query}&per_page={limits}"
-    )
+    url = f"https://api.github.com/search/repositories?q={search_query}&per_page={limits}&page={page}"
     if verbose:
         print("Searching for repositories with the following query:", url)
     response = requests.get(url, headers=get_headers())
@@ -58,7 +58,7 @@ def clone_repo(repo_url: str, download_path: str, repo_name: str):
         download_path (str): The path to download the repository to
         repo_name (str): The name of the repository
     """
-    os.system(f"git clone {repo_url} {download_path}/{repo_name}")
+    os.system(f"cd {download_path} && git clone {repo_url} {repo_name}")
 
 
 if __name__ == "__main__":
