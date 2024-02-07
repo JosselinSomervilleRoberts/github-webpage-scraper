@@ -4,6 +4,7 @@ import datetime
 import cv2
 import numpy as np
 import argparse
+from scipy import stats
 
 from deployment.server import JekyllServer
 from fetcher.search import clone_repo, search_github_repos
@@ -11,31 +12,30 @@ from fetcher.filter import filter_repo
 from renderer.driver import save_random_screenshot, ScreenshotOptions
 
 
-def compute_percentage_of_white_pixels(image_path: str, tolerance: int = 10) -> float:
+def percentage_of_most_frequent_color(image_path):
     # Read the image
     img = cv2.imread(image_path)
     if img is None:
         return "Image not found or path is incorrect"
 
-    # Define the lower bound for white considering the tolerance
-    lower_bound = 255 - tolerance
+    # Reshape the image to a 2D array where each row is a pixel
+    pixels = img.reshape(-1, img.shape[2])
 
-    # Count pixels within the tolerance for being considered white
-    # This creates a mask where all "white" pixels according to our tolerance are True
-    white_pixels_mask = np.all(img >= [lower_bound, lower_bound, lower_bound], axis=-1)
+    # Find the most frequent color
+    # Here we convert each pixel to a tuple to make them hashable, then use np.unique to find the most frequent one
+    unique_colors, counts = np.unique(
+        [tuple(row) for row in pixels], axis=0, return_counts=True
+    )
+    most_frequent_color = unique_colors[np.argmax(counts)]
+    frequency_of_most_frequent = np.max(counts)
 
-    # Count the number of True values in our mask
-    white_pixels = np.sum(white_pixels_mask)
+    # Calculate the total number of pixels
+    total_pixels = img.shape[0] * img.shape[1]
 
-    # Calculate total pixels
-    total_pixels = (
-        img.shape[0] * img.shape[1]
-    )  # img.shape gives the dimensions of the image (height, width, channels)
+    # Calculate the percentage of the most frequent color
+    percentage = (frequency_of_most_frequent / total_pixels) * 100
 
-    # Calculate percentage
-    percentage = (white_pixels / total_pixels) * 100
-
-    return percentage
+    return percentage, most_frequent_color
 
 
 def main(args):
@@ -108,7 +108,7 @@ def main(args):
                 continue
 
             # Open the image and compute the amount of white pixels (percentage)
-            white_pixels_ratio: float = compute_percentage_of_white_pixels(image_path)
+            white_pixels_ratio, _ = percentage_of_most_frequent_color(image_path)
             if white_pixels_ratio > args.max_white_percentage:
                 print(
                     f"{repo_name} has too many white pixels ({white_pixels_ratio:.2f}%). Skipping..."
