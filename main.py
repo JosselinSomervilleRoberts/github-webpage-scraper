@@ -1,10 +1,10 @@
 import os
-import time
 import datetime
-import cv2
 import numpy as np
 import argparse
-from scipy import stats
+import imagehash
+from PIL import Image
+from typing import Optional
 
 from deployment.server import JekyllServer
 from fetcher.search import clone_repo, search_github_repos
@@ -12,30 +12,140 @@ from fetcher.filter import filter_repo
 from renderer.driver import save_random_screenshot, ScreenshotOptions
 
 
-def percentage_of_most_frequent_color(image_path):
-    # Read the image
-    img = cv2.imread(image_path)
-    if img is None:
-        return "Image not found or path is incorrect"
+class ImageFilter:
+    """A class to filter images based on their content."""
 
-    # Reshape the image to a 2D array where each row is a pixel
-    pixels = img.reshape(-1, img.shape[2])
+    def __init__(
+        self,
+        hashfunc: imagehash.ImageHash = imagehash.average_hash,
+        hash_size_white_imgs: int = 8,
+        hash_size_other_imgs: int = 6,
+        max_background_percentage: float = 95.0,
+        max_white_percentage: float = 25.0,
+        verbose: bool = False,
+    ):
+        """
+        Args:
+            hashfunc: The hash function to use for comparing images.
+            hash_size_white_imgs: The hash size to use for white images.
+            hash_size_other_imgs: The hash size to use for other images.
+            max_background_percentage: The maximum percentage of white pixels for a page to be considered a landing page.
+            max_white_percentage: The maximum percentage of white pixels for a page to be considered a landing page.
+            verbose: Whether to print the progress.
+        """
+        self.hashfunc: imagehash.ImageHash = hashfunc
+        self.hash_size_white_imgs: int = hash_size_white_imgs
+        self.hash_size_other_imgs: int = hash_size_other_imgs
+        self.max_background_percentage: float = max_background_percentage
+        self.max_white_percentage: float = max_white_percentage
+        self.verbose: bool = verbose
+        self.hashes: set = set()
 
-    # Find the most frequent color
-    # Here we convert each pixel to a tuple to make them hashable, then use np.unique to find the most frequent one
-    unique_colors, counts = np.unique(
-        [tuple(row) for row in pixels], axis=0, return_counts=True
-    )
-    most_frequent_color = unique_colors[np.argmax(counts)]
-    frequency_of_most_frequent = np.max(counts)
+    def add_hash(
+        self,
+        image: Image,
+        image_np: Optional[np.ndarray] = None,
+        percentage: Optional[float] = None,
+    ) -> bool:
+        """Compute the hash of the image and add it to the set of hashes.
 
-    # Calculate the total number of pixels
-    total_pixels = img.shape[0] * img.shape[1]
+        Images with white background are hashed with a larger hash size to reduce the number of false positives.
 
-    # Calculate the percentage of the most frequent color
-    percentage = (frequency_of_most_frequent / total_pixels) * 100
+        Args:
+            image: The image to hash.
+            image_np: The NumPy array of the image.
+            percentage: The percentage of white pixels in the image.
+        Returns:
+            Whether the image was added to the set of hashes or already existed.
+        """
+        # Compute the hash
+        if image_np is None:
+            image_np = np.array(image)
+        if percentage is None:
+            percentage = self.compute_percentage_of_white_pixels(image_np)
+        if percentage > self.max_background_percentage:
+            hash = self.hashfunc(image, hash_size=self.hash_size_white_imgs)
+        else:
+            hash = self.hashfunc(image, hash_size=self.hash_size_other_imgs)
 
-    return percentage, most_frequent_color
+        # Add the hash to the set
+        if hash in self.hashes:
+            return False
+        self.hashes.add(hash)
+        return True
+
+    def compute_percentage_of_white_pixels(self, image_np: np.ndarray) -> float:
+        """Compute the percentage of white pixels in the image."""
+        # Convert the image to grayscale and convert to NumPy array
+        image_array = image_np
+        if len(image_array.shape) == 3:
+            # Average 3 channels to get a single channel
+            image_array = np.mean(image_array, axis=2)
+
+        # Count the number of white pixels
+        white_pixels = np.sum(image_array == 255)
+
+        # Compute the percentage of white pixels
+        percentage = (
+            white_pixels / (image_array.shape[0] * image_array.shape[1])
+        ) * 100
+        return percentage
+
+    def compute_percentage_of_most_frequent_color(self, image_np: np.ndarray) -> float:
+        """Compute the percentage of the most frequent color in the image."""
+        # Reshape the image to a 2D array where each row is a pixel
+        pixels = image_np.reshape(-1, image_np.shape[2])
+
+        # Find the most frequent color
+        # Here we convert each pixel to a tuple to make them hashable, then use np.unique to find the most frequent one
+        unique_colors, counts = np.unique(
+            [tuple(row) for row in pixels], axis=0, return_counts=True
+        )
+        most_frequent_color = unique_colors[np.argmax(counts)]
+        frequency_of_most_frequent = np.max(counts)
+
+        # Calculate the total number of pixels
+        total_pixels = image_np.shape[0] * image_np.shape[1]
+
+        # Calculate the percentage of the most frequent color
+        percentage = (frequency_of_most_frequent / total_pixels) * 100
+
+        return percentage
+
+    def check_image(self, image_path: str) -> bool:
+        """Check if the image meets the requirements."""
+        # Open the image
+        image = Image.open(image_path)
+        image_np = np.array(image)
+
+        # Compute the percentage of white pixels
+        white_pixels_ratio = self.compute_percentage_of_white_pixels(image_np)
+        if white_pixels_ratio > self.max_background_percentage:
+            if self.verbose:
+                print(
+                    f"{image_path} has too many white pixels ({white_pixels_ratio:.2f}%)."
+                )
+            return False
+
+        # Add the hash to the set
+        added = self.add_hash(image, image_np, white_pixels_ratio)
+        if not added:
+            if self.verbose:
+                print(f"{image_path} already exists in the set of hashes.")
+            return False
+
+        # Compute the percentage of the most frequent color
+        most_frequent_color_ratio = self.compute_percentage_of_most_frequent_color(
+            image_np
+        )
+        if most_frequent_color_ratio > self.max_background_percentage:
+            if self.verbose:
+                print(
+                    f"{image_path} has too many pixels of the most frequent color ({most_frequent_color_ratio:.2f}%)."
+                )
+            return False
+
+        return True
 
 
 def main(args):
@@ -48,6 +158,10 @@ def main(args):
     # Variables to store the results
     num_websites_collected: int = 0
     page: int = 0
+    image_filter = ImageFilter(
+        max_background_percentage=args.max_background_percentage,
+        verbose=True,
+    )
 
     while num_websites_collected < args.num_websites_desired:
         page += 1
@@ -107,12 +221,8 @@ def main(args):
                 os.system(f"rm -rf {repo_path}")
                 continue
 
-            # Open the image and compute the amount of white pixels (percentage)
-            white_pixels_ratio, _ = percentage_of_most_frequent_color(image_path)
-            if white_pixels_ratio > args.max_white_percentage:
-                print(
-                    f"{repo_name} has too many white pixels ({white_pixels_ratio:.2f}%). Skipping..."
-                )
+            # Open the image and check for duplicates or images with too many white / background pixels
+            if not image_filter.check_image(image_path):
                 os.remove(image_path)  # Delete the screenshot
                 server.stop()
                 os.system(f"rm -rf {repo_path}")
@@ -128,6 +238,10 @@ def main(args):
             server.stop()
             num_websites_collected += 1
 
+            # Delete build files
+            os.system(f"rm -rf {repo_path}/_site")
+            os.system(f"rm -rf {repo_path}/.jekyll-cache")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fetch and render GitHub pages")
@@ -138,10 +252,10 @@ def parse_args():
         help="The path to save the repositories",
     )
     parser.add_argument(
-        "--max_white_percentage",
+        "--max_background_percentage",
         type=float,
         default=95.0,
-        help="The maximum percentage of white pixels for a page to be considered a landing page",
+        help="The maximum percentage of background pixels for a page to be considered a landing page",
     )
     parser.add_argument(
         "--max_num_actions",
