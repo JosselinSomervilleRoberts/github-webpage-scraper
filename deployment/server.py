@@ -4,6 +4,7 @@ import signal
 from typing import Optional
 import time
 import socket
+import threading
 
 
 class JekyllServer:
@@ -12,6 +13,9 @@ class JekyllServer:
         self.verbose: bool = verbose
         self.port: int = port
         self.process: Optional[subprocess.Popen] = None
+        self.success: bool = (
+            False  # Shared flag to indicate if the server started successfully
+        )
 
     def setup_gemfile(self):
         # Check if Gemfile exists, if not, copy Gemfile.default to Gemfile
@@ -52,7 +56,30 @@ class JekyllServer:
         if self.verbose:
             print(f"Killed process using port {port}.")
 
-    def start(self):
+    def stream_output(self, process):
+        """Read from stdout and stderr streams and print."""
+        while True:
+            output = process.stdout.readline()
+            if not output:
+                err = process.stderr.readline()
+                if err:
+                    decoded_line = err.decode("utf-8").strip()
+                    if self.verbose:
+                        print(f"\t> \033[91mStderr: {decoded_line}\033[0m")
+                    self.success = False
+                    break
+                else:
+                    # No more output
+                    break
+            else:
+                decoded_line = output.decode("utf-8").strip()
+                if self.verbose:
+                    print(f"\t> Stdout: {decoded_line}")
+                if "Server running... press ctrl-c to stop." in decoded_line:
+                    self.success = True
+                    break
+
+    def start(self, timeout: int = 30) -> bool:
         """Start the Jekyll server in a separate process and monitor the output."""
         if self.is_port_in_use(self.port):
             if self.verbose:
@@ -73,28 +100,30 @@ class JekyllServer:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             preexec_fn=os.setsid,
-            encoding="utf-8",  # This ensures stdout and stderr are strings
         )
 
-        while True:
-            # Stream the output
-            output = self.process.stdout.readline()
-            if output == "" and self.process.poll() is not None:
-                break
-            if output:
-                print(output.strip())
-                if "Server is running.. press ctrl-c to stop." in output.strip():
-                    if self.verbose:
-                        print(f"Jekyll server started at http://localhost:{self.port}")
-                    break  # Server started successfully
+        # Start thread to read output
+        output_thread = threading.Thread(
+            target=self.stream_output, args=(self.process,)
+        )
+        output_thread.start()
 
-            # Check stderr for any immediate errors
-            error_output = self.process.stderr.readline()
-            if error_output:
-                pass
-                print(f"Error: {error_output.strip()}")
-                # # Here, you can parse the error and take action accordingly
-                # break
+        # Wait for the thread to complete or timeout
+        output_thread.join(timeout=timeout)
+
+        if output_thread.is_alive():
+            # If the thread is still alive after the timeout, the server did not start successfully within the timeout period
+            print("Timeout reached without detecting server start.")
+            self.process.terminate()  # Terminate the process if it's still running
+            output_thread.join()  # Ensure the thread is cleaned up
+            return False
+        else:
+            if self.verbose:
+                if self.success:
+                    print("Jekyll server started successfully.")
+                else:
+                    print("Jekyll server failed to start.")
+            return self.success  # Return the success flag
 
     def stop(self, timeout=5):
         """Stop the Jekyll server and terminate the process with a timeout.
