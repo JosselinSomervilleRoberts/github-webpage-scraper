@@ -1,13 +1,15 @@
 import subprocess
 import os
 import signal
-from typing import Optional
+from typing import Any, Optional
 import time
 import socket
 import threading
 
 
 class JekyllServer:
+    """A class to start and stop a Jekyll server in a separate process."""
+
     def __init__(self, repo_path: str, verbose: bool = False, port: int = 4000):
         self.repo_path: str = repo_path
         self.verbose: bool = verbose
@@ -16,6 +18,15 @@ class JekyllServer:
         self.success: bool = (
             False  # Shared flag to indicate if the server started successfully
         )
+
+    def __del__(self):
+        self.stop()
+        if JekyllServer.is_port_in_use(self.port):
+            if self.verbose:
+                print(f"Port {self.port} is in use. Attempting to free it.")
+            self.kill_process_using_port(self.port)
+        if self.verbose:
+            print("JekyllServer object deleted.")
 
     def setup_gemfile(self):
         # Check if Gemfile exists, if not, copy Gemfile.default to Gemfile
@@ -44,7 +55,7 @@ class JekyllServer:
                 print("Copied _config.default.yml to _config.yml")
             return
 
-    def is_port_in_use(self, port):
+    def is_port_in_use(port):
         """Check if a port is in use on localhost."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(("localhost", port)) == 0
@@ -81,7 +92,7 @@ class JekyllServer:
 
     def start(self, timeout: int = 30) -> bool:
         """Start the Jekyll server in a separate process and monitor the output."""
-        if self.is_port_in_use(self.port):
+        if JekyllServer.is_port_in_use(self.port):
             if self.verbose:
                 print(f"Port {self.port} is in use. Attempting to free it.")
             self.kill_process_using_port(self.port)
