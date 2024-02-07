@@ -6,6 +6,8 @@ from typing import Dict, List
 # Load the .env file
 load_dotenv()
 
+LARGE_NUM_LINES = 1000000
+
 
 def get_headers() -> Dict[str, str]:
     """Get the headers for the GitHub API
@@ -98,7 +100,11 @@ def count_num_lines_in_files(repo_path: str, files: List[str]) -> int:
     num_lines = 0
 
     for file in files:
-        with open(os.path.join(repo_path, file), "r") as f:
-            num_lines += len(f.readlines())
+        try:
+            with open(os.path.join(repo_path, file), "r") as f:
+                num_lines += len(f.readlines())
+        except:
+            # An error occured, so we are just going to add a lot of lines so that this repository is not considered
+            num_lines += LARGE_NUM_LINES
 
     return num_lines
