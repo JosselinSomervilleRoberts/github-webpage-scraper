@@ -4,6 +4,7 @@ import datetime
 
 from deployment.server import JekyllServer
 from fetcher.search import clone_repo, search_github_repos
+from fetcher.filter import filter_repo
 from renderer.driver import save_random_screenshot, ScreenshotOptions
 
 
@@ -24,10 +25,15 @@ def main():
     for i, repo in enumerate(repos):
         print("\n" + "=" * 50)
         repo_name = f"{i}_{repo['name']}"
+        repo_path = os.path.join(path, repo_name)
         clone_url = repo["clone_url"]
         port = 4000
-        print(f"Cloning {clone_url} to {path}/{repo_name}")
+        print(f"Cloning {clone_url} to {repo_path}")
         clone_repo(clone_url, path, repo_name)
+
+        if not filter_repo(repo_path):
+            print(f"{repo_name} does not meet the requirements. Skipping...")
+            continue
 
         # Start the Jekyll server
         server = JekyllServer(f"{path}/{repo_name}", verbose=True)
