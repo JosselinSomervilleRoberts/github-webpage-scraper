@@ -1,11 +1,40 @@
 import os
 import time
 import datetime
+import cv2
+import numpy as np
 
 from deployment.server import JekyllServer
 from fetcher.search import clone_repo, search_github_repos
 from fetcher.filter import filter_repo
 from renderer.driver import save_random_screenshot, ScreenshotOptions
+
+
+def compute_percentage_of_white_pixels(image_path: str, tolerance: int = 10) -> float:
+    # Read the image
+    img = cv2.imread(image_path)
+    if img is None:
+        return "Image not found or path is incorrect"
+
+    # Define the lower bound for white considering the tolerance
+    lower_bound = 255 - tolerance
+
+    # Count pixels within the tolerance for being considered white
+    # This creates a mask where all "white" pixels according to our tolerance are True
+    white_pixels_mask = np.all(img >= [lower_bound, lower_bound, lower_bound], axis=-1)
+
+    # Count the number of True values in our mask
+    white_pixels = np.sum(white_pixels_mask)
+
+    # Calculate total pixels
+    total_pixels = (
+        img.shape[0] * img.shape[1]
+    )  # img.shape gives the dimensions of the image (height, width, channels)
+
+    # Calculate percentage
+    percentage = (white_pixels / total_pixels) * 100
+
+    return percentage
 
 
 def main():
@@ -44,11 +73,16 @@ def main():
             continue
 
         # Take a screenshot of a random page
+        image_path = f"screenshot_{repo_name}.png"
         try:
-            actions = save_random_screenshot(f"screenshot_{repo_name}.png", port=port)
+            actions = save_random_screenshot(image_path, port=port)
         except Exception as e:
             print(f"Failed to take a screenshot: {e}")
-            actions = []
+            continue
+
+        # Open the image and compute the amount of white pixels (percentage)
+        white_pixels_ratio: float = compute_percentage_of_white_pixels(image_path)
+        print(f"Percentage of white pixels: {white_pixels_ratio:.2f}%")
 
         # Print the actions performed
         if actions:
