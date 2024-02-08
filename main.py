@@ -19,7 +19,7 @@ class ImageFilter:
         self,
         hashfunc: imagehash.ImageHash = imagehash.average_hash,
         hash_size_white_imgs: int = 8,
-        hash_size_other_imgs: int = 6,
+        hash_size_other_imgs: int = 5,
         max_background_percentage: float = 95.0,
         max_white_percentage: float = 25.0,
         verbose: bool = False,
