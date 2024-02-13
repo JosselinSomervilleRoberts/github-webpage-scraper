@@ -2,6 +2,7 @@ import requests
 from typing import Optional, Any, Dict, List
 from datetime import datetime
 import os
+import subprocess
 
 from .utils import get_headers
 
@@ -58,15 +59,32 @@ def search_github_repos(
         raise Exception(f"Failed to retrieve data: {response.status_code}")
 
 
-def clone_repo(repo_url: str, download_path: str, repo_name: str):
-    """Clone a repository from GitHub
+def clone_repo(repo_url: str, download_path: str, repo_name: str, timeout: int = 5):
+    """Clone a repository from GitHub with a timeout
 
     Args:
         repo_url (str): The URL of the repository
         download_path (str): The path to download the repository to
         repo_name (str): The name of the repository
+        timeout (int): The maximum time allowed for the cloning process in seconds
+    Raises:
+        TimeoutExpired: If the cloning process takes longer than `timeout` seconds
     """
-    os.system(f"cd {download_path} && git clone {repo_url} {repo_name}")
+    try:
+        # Ensure the download path exists
+        os.makedirs(download_path, exist_ok=True)
+        # Execute the git clone command with a timeout
+        subprocess.run(
+            ["git", "clone", repo_url, os.path.join(download_path, repo_name)],
+            timeout=timeout,
+            check=True,
+        )
+    except subprocess.TimeoutExpired:
+        raise Exception(
+            f"Timeout expired: Cloning of {repo_name} took longer than {timeout} seconds"
+        )
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Error during cloning: {e}")
 
 
 if __name__ == "__main__":
