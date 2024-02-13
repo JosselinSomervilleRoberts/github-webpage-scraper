@@ -253,7 +253,7 @@ def main(args):
             )
             repo_path = os.path.join(path, "repos", repo_name)
             clone_url = repo["clone_url"]
-            port = 4000
+            port = args.port
             metadata = {**repo, "repo_name": repo_name, "repo_path": repo_path}
 
             # CHeck if we did not already collect from this user
@@ -280,7 +280,7 @@ def main(args):
             metadata["file_filter_results"] = filter_results
 
             # Start the Jekyll server
-            server = JekyllServer(repo_path, verbose=True)
+            server = JekyllServer(repo_path, verbose=True, port=port)
             success: bool = server.start()
 
             if not success:
@@ -390,6 +390,12 @@ def parse_args():
         type=int,
         default=1,
         help="The number of days between searches",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=4000,
+        help="The port to use for the Jekyll server",
     )
 
     return parser.parse_args()

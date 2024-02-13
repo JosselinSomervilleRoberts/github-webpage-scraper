@@ -23,15 +23,13 @@ def find_clickable_elts(driver: webdriver.Chrome) -> List[str]:
     return clickable_ids
 
 
-def filter_clickable_elts(
-    clickable_ids: List[str], url: str = "http://localhost:4000"
-) -> List[str]:
+def filter_clickable_elts(clickable_ids: List[str], url: str) -> List[str]:
     """Filter out the clickable elements that are not useful.
     This function removes duplicates, empty strings, non-URLs, and URLs that are not part of the website.
 
     Args:
         clickable_ids (List[str]): A list of URLs of all clickable elements
-        url (str, optional): The URL of the website. Defaults to "http://localhost:4000".
+        url (str): The URL of the website. Usually "http://localhost:{port}".
 
     Returns:
         List[str]: A list of URLs of all useful clickable elements

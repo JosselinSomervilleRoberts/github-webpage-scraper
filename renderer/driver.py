@@ -7,12 +7,12 @@ from .action import Action
 
 
 def init_driver(
-    url: str = "http://localhost:4000", resolution: tuple[int, int] = (1920, 1080)
+    url: str, resolution: tuple[int, int] = (1920, 1080)
 ) -> webdriver.Chrome:
     """Initialize the WebDriver
 
     Args:
-        url (str, optional): The URL of the website. Defaults to "http://localhost:4000".
+        url (str): The URL of the website. Usually "http://localhost:{port}".
         resolution (tuple[int, int], optional): The resolution of the WebDriver. Defaults to (1920, 1080).
 
     Returns:
@@ -53,14 +53,14 @@ class ScreenshotOptions:
 
 
 def save_random_screenshot(
-    path: str, options: ScreenshotOptions = ScreenshotOptions(), port: int = 4000
+    path: str, port: int, options: ScreenshotOptions = ScreenshotOptions()
 ) -> List[Action]:
     """Save a screenshot of a random page
 
     Args:
         path (str): The path to save the screenshot
+        port (int): The port to use for the website.
         options (ScreenshotOptions, optional): The options to use for taking the screenshot. Defaults to ScreenshotOptions().
-        port (int, optional): The port to use for the website. Defaults to 4000.
 
     Returns:
         List[Action]: A list of actions performed to take the screenshot

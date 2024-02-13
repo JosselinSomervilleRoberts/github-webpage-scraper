@@ -10,7 +10,7 @@ import threading
 class JekyllServer:
     """A class to start and stop a Jekyll server in a separate process."""
 
-    def __init__(self, repo_path: str, verbose: bool = False, port: int = 4000):
+    def __init__(self, repo_path: str, port: int, verbose: bool = False):
         self.repo_path: str = repo_path
         self.verbose: bool = verbose
         self.port: int = port
