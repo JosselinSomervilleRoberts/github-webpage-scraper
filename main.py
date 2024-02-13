@@ -164,7 +164,7 @@ def next_dates(
 ) -> Tuple[datetime.datetime, datetime.datetime]:
     """Get the next dates to search for repositories"""
     date_start = date_next
-    date_next = date_start + datetime.timedelta(days=7)
+    date_next = date_start + datetime.timedelta(days=args.day_interval)
     if date_start > datetime.datetime.now():
         raise ValueError("The date_start is in the future")
     return date_start, date_next
@@ -175,7 +175,7 @@ def previous_dates(
 ) -> Tuple[datetime.datetime, datetime.datetime]:
     """Get the previous dates to search for repositories"""
     date_next = date_start
-    date_start = date_next - datetime.timedelta(days=7)
+    date_start = date_next - datetime.timedelta(days=args.day_interval)
     if date_start < datetime.datetime.strptime(args.query_created_after, "%Y-%m-%d"):
         raise ValueError("The date_start is before the query_created_after")
     return date_start, date_next
@@ -205,7 +205,7 @@ def main(args):
     date_next = datetime.datetime.now()
     date_start = max(
         datetime.datetime.strptime(args.query_created_after, "%Y-%m-%d"),
-        date_next - datetime.timedelta(days=7),
+        date_next - datetime.timedelta(days=args.day_interval),
     )
     num_repos_previous_page: int = args.query_limits
 
@@ -218,6 +218,7 @@ def main(args):
             # So we have to break down the search into multiple queries
             # Also therer could be less than 1000 results
             date_start, date_next = previous_dates(date_start, date_next, args)
+            page = 0
         else:
             page += 1
         print(f"Page {page} of the search results for {date_start} to {date_next}")
@@ -237,7 +238,9 @@ def main(args):
         except Exception as e:
             if "422" in str(e):
                 # We probably reached the end of the results for these dates
+                print(f"Found error 422: {e}")
                 date_start, date_next = previous_dates(date_start, date_next, args)
+                page = 0
                 time.sleep(30)  # Just in case we have a rate limit
                 continue
 
@@ -245,7 +248,6 @@ def main(args):
         for repo in enumerate(repos):
             print("\n" + "=" * 50)
             repo = repo[1]
-            print(f"Processing repository {repo}")
             repo_name = (
                 f"{num_websites_collected}_{repo['full_name'].replace('/', '_')}"
             )
@@ -382,6 +384,12 @@ def parse_args():
         type=int,
         default=100,
         help="The number of websites to gather (after filtering)",
+    )
+    parser.add_argument(
+        "--day_interval",
+        type=int,
+        default=1,
+        help="The number of days between searches",
     )
 
     return parser.parse_args()
