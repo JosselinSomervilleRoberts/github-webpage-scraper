@@ -43,7 +43,10 @@ def search_github_repos(
     url = f"https://api.github.com/search/repositories?q={search_query}&per_page={limits}&page={page}"
     if verbose:
         print("Searching for repositories with the following query:", url)
-    response = requests.get(url, headers=get_headers())
+    try:
+        response = requests.get(url, headers=get_headers(), timeout=30)
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Failed to retrieve data: {e}")
     if response.status_code == 200:
         return response.json()["items"]
     else:

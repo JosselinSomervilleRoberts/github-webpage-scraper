@@ -190,7 +190,12 @@ def main(args):
             clone_url = repo["clone_url"]
             port = 4000
             print(f"Cloning {clone_url} to {repo_path}")
-            clone_repo(clone_url, os.path.join(path, "repos"), repo_name)
+            try:
+                clone_repo(clone_url, os.path.join(path, "repos"), repo_name)
+            except Exception as e:
+                print(f"Failed to clone the repository: {e}")
+                os.system(f"rm -rf {repo_path}")  # Delete the repository
+                continue
 
             if not filter_repo(repo_path):
                 print(f"{repo_name} does not meet the requirements. Skipping...")
