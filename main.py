@@ -150,7 +150,7 @@ class ImageFilter:
         return True, {
             "white_pixels_ratio": white_pixels_ratio,
             "most_frequent_color_ratio": most_frequent_color_ratio,
-            "hash": hash,
+            "hash": str(hash),
         }
 
 
@@ -312,7 +312,7 @@ def parse_args():
     parser.add_argument(
         "--query_created_after",
         type=str,
-        default="2024-01-01",
+        default="2023-07-01",
         help="The date to search for repositories created after",
     )
     parser.add_argument(
