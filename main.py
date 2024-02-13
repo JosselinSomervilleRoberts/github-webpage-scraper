@@ -200,8 +200,8 @@ def main(args):
         verbose=True,
     )
 
-    users = set()
-    repos = set()
+    users_set = set()
+    repos_set = set()
 
     date_next = datetime.datetime.now()
     date_start = max(
@@ -263,15 +263,15 @@ def main(args):
 
             # Check if we did not already collect from this user
             user = repo["owner"]["login"]
-            if user in users:
+            if user in users_set:
                 print(f"Already collected from {user}. Skipping...")
                 continue
 
             # Check if we have already tested this repo
-            if name in repos:
+            if name in repos_set:
                 print(f"Alrwady tried the repo {name}")
                 continue
-            repos.add(name)
+            repos_set.add(name)
 
             print(f"Cloning {clone_url} to {repo_path}")
             try:
@@ -339,7 +339,7 @@ def main(args):
             os.system(f"rm -rf {repo_path}/.jekyll-cache")
 
             # Save the metadata
-            users.add(user)
+            users_set.add(user)
             metadata_file = os.path.join(metadata_path, f"{repo_name}.json")
             with open(metadata_file, "w") as f:
                 # Format as a nice JSON file
