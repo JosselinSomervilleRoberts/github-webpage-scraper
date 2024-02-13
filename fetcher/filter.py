@@ -6,7 +6,7 @@ from .utils import (
 from typing import Dict, Tuple
 
 
-CODE_EXTENSIONS = ["js", "html", "md"]
+CODE_EXTENSIONS = ["js", "html", "md", "py", "rb", "php", "java", "c", "cpp"]
 STYLE_EXTENSIONS = ["css"]
 ASSET_EXTENSIONS = [
     "png",
@@ -97,7 +97,7 @@ class RepoFilterParams:
     """Maximum number of assets in the repository (images, videos, etc.)"""
     max_num_assets: int = 5
 
-    """The maximum number of lines in the code files. This includes all code files (js, html, md)"""
+    """The maximum number of lines in the code files. This includes all code files (js, html, md, py, rb, php, java, c, cpp)"""
     max_num_lines_code: int = 1000
 
     """The maximum number of lines in CSS files"""
