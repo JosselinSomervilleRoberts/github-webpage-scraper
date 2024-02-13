@@ -6,11 +6,16 @@ import imagehash
 from PIL import Image
 from typing import Optional, Tuple, Dict, Any
 import json
+import time
 
 from deployment.server import JekyllServer
 from fetcher.search import clone_repo, search_github_repos
 from fetcher.filter import filter_repo
 from renderer.driver import save_random_screenshot, ScreenshotOptions
+
+# Github won't allow more than 1000 results
+# So we have to break down the search into multiple queries
+GITHUB_MAX_RESULTS = 1000
 
 
 class ImageFilter:
@@ -154,6 +159,28 @@ class ImageFilter:
         }
 
 
+def next_dates(
+    date_start: datetime, date_next: datetime, args: argparse.Namespace
+) -> Tuple[datetime.datetime, datetime.datetime]:
+    """Get the next dates to search for repositories"""
+    date_start = date_next
+    date_next = date_start + datetime.timedelta(days=7)
+    if date_start > datetime.datetime.now():
+        raise ValueError("The date_start is in the future")
+    return date_start, date_next
+
+
+def previous_dates(
+    date_start: datetime, date_next: datetime, args: argparse.Namespace
+) -> Tuple[datetime.datetime, datetime.datetime]:
+    """Get the previous dates to search for repositories"""
+    date_next = date_start
+    date_start = date_next - datetime.timedelta(days=7)
+    if date_start < datetime.datetime.strptime(args.query_created_after, "%Y-%m-%d"):
+        raise ValueError("The date_start is before the query_created_after")
+    return date_start, date_next
+
+
 def main(args):
     file_path: str = os.path.dirname(os.path.realpath(__file__))
     path = os.path.join(file_path, args.save_path)
@@ -175,21 +202,44 @@ def main(args):
 
     users = set()
 
+    date_next = datetime.datetime.now()
+    date_start = max(
+        datetime.datetime.strptime(args.query_created_after, "%Y-%m-%d"),
+        date_next - datetime.timedelta(days=7),
+    )
+    num_repos_previous_page: int = args.query_limits
+
     while num_websites_collected < args.num_websites_desired:
-        page += 1
-        print(f"Page {page} of the search results")
+        if (
+            page * args.query_limits >= GITHUB_MAX_RESULTS
+            or num_repos_previous_page < args.query_limits
+        ):
+            # Github won't allow more than 1000 results
+            # So we have to break down the search into multiple queries
+            # Also therer could be less than 1000 results
+            date_start, date_next = previous_dates(date_start, date_next, args)
+        else:
+            page += 1
+        print(f"Page {page} of the search results for {date_start} to {date_next}")
 
         # Search for GitHub pages repositories
-        repos = search_github_repos(
-            created_after=datetime.datetime.strptime(
-                args.query_created_after, "%Y-%m-%d"
-            ),
-            language=args.query_language,
-            max_size_kb=args.query_max_size_kb,
-            limits=args.query_limits,
-            page=page,
-            verbose=True,
-        )
+        try:
+            repos = search_github_repos(
+                created_after=date_start,
+                created_before=date_next,
+                language=args.query_language,
+                max_size_kb=args.query_max_size_kb,
+                limits=args.query_limits,
+                page=page,
+                verbose=True,
+            )
+            num_repos_previous_page = len(repos)
+        except Exception as e:
+            if "422" in str(e):
+                # We probably reached the end of the results for these dates
+                date_start, date_next = previous_dates(date_start, date_next, args)
+                time.sleep(30)  # Just in case we have a rate limit
+                continue
 
         # Clone the repositories and start the Jekyll server
         for repo in enumerate(repos):

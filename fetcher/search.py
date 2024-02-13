@@ -8,6 +8,7 @@ from .utils import get_headers
 
 def search_github_repos(
     created_after: datetime,
+    created_before: Optional[datetime] = None,
     language: Optional[str] = None,
     max_size_kb: int = 1000,
     limits: int = 100,
@@ -32,7 +33,11 @@ def search_github_repos(
     """
     query_parameters = {
         "size": f"<={max_size_kb}",
-        "created": f">={created_after.strftime('%Y-%m-%d')}",
+        "created": (
+            f">={created_after.strftime('%Y-%m-%d')}"
+            if created_before is None
+            else f"{created_after.strftime('%Y-%m-%d')}..{created_before.strftime('%Y-%m-%d')}"
+        ),
     }
     if language:
         query_parameters["language"] = language
@@ -40,7 +45,7 @@ def search_github_repos(
     search_query += " ".join(
         [f"{key}:{value}" for key, value in query_parameters.items()]
     )
-    url = f"https://api.github.com/search/repositories?q={search_query}&per_page={limits}&page={page}"
+    url = f"https://api.github.com/search/repositories?q={search_query}&per_page={limits}&page={page}&sort=updated&order=desc"
     if verbose:
         print("Searching for repositories with the following query:", url)
     try:
