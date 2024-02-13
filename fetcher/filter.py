@@ -3,7 +3,7 @@ from .utils import (
     filter_files_by_extension,
     list_files_in_dir,
 )
-from typing import Dict
+from typing import Dict, Tuple
 
 
 CODE_EXTENSIONS = ["js", "html", "md"]
@@ -104,7 +104,7 @@ class RepoFilterParams:
     max_num_lines_style: int = 2000
 
 
-def filter_repo(repo_path: str, params: RepoFilterParams = RepoFilterParams()) -> bool:
+def filter_repo(repo_path: str, params: RepoFilterParams = RepoFilterParams()) -> Tuple[bool, Dict[str, Dict[str, int]]
     """Filter a repository based on the parameters
 
     Args:
@@ -113,6 +113,7 @@ def filter_repo(repo_path: str, params: RepoFilterParams = RepoFilterParams()) -
 
     Returns:
         bool: Whether the repository passes the filter
+        Dict[str, Dict[str, int]]: The analysis of the repository
     """
     # Analyze the repository
     analysis = analyze_repo(repo_path)
@@ -127,4 +128,4 @@ def filter_repo(repo_path: str, params: RepoFilterParams = RepoFilterParams()) -
         and analysis["num_lines"]["style"] <= params.max_num_lines_style
     )
 
-    return passes_filter
+    return passes_filter, analysis

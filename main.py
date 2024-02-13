@@ -4,7 +4,8 @@ import numpy as np
 import argparse
 import imagehash
 from PIL import Image
-from typing import Optional
+from typing import Optional, Tuple, Dict, Any
+import json
 
 from deployment.server import JekyllServer
 from fetcher.search import clone_repo, search_github_repos
@@ -46,7 +47,7 @@ class ImageFilter:
         image: Image,
         image_np: Optional[np.ndarray] = None,
         percentage: Optional[float] = None,
-    ) -> bool:
+    ) -> Tuple[bool, str]:
         """Compute the hash of the image and add it to the set of hashes.
 
         Images with white background are hashed with a larger hash size to reduce the number of false positives.
@@ -57,6 +58,7 @@ class ImageFilter:
             percentage: The percentage of white pixels in the image.
         Returns:
             Whether the image was added to the set of hashes or already existed.
+            Hash of the image.
         """
         # Compute the hash
         if image_np is None:
@@ -70,9 +72,9 @@ class ImageFilter:
 
         # Add the hash to the set
         if hash in self.hashes:
-            return False
+            return False, hash
         self.hashes.add(hash)
-        return True
+        return True, hash
 
     def compute_percentage_of_white_pixels(self, image_np: np.ndarray) -> float:
         """Compute the percentage of white pixels in the image."""
@@ -112,7 +114,7 @@ class ImageFilter:
 
         return percentage
 
-    def check_image(self, image_path: str) -> bool:
+    def check_image(self, image_path: str) -> Tuple[bool, Dict[str, Any]]:
         """Check if the image meets the requirements."""
         # Open the image
         image = Image.open(image_path)
@@ -125,14 +127,14 @@ class ImageFilter:
                 print(
                     f"{image_path} has too many white pixels ({white_pixels_ratio:.2f}%)."
                 )
-            return False
+            return False, {}
 
         # Add the hash to the set
-        added = self.add_hash(image, image_np, white_pixels_ratio)
+        added, hash = self.add_hash(image, image_np, white_pixels_ratio)
         if not added:
             if self.verbose:
                 print(f"{image_path} already exists in the set of hashes.")
-            return False
+            return False, {}
 
         # Compute the percentage of the most frequent color
         most_frequent_color_ratio = self.compute_percentage_of_most_frequent_color(
@@ -143,9 +145,13 @@ class ImageFilter:
                 print(
                     f"{image_path} has too many pixels of the most frequent color ({most_frequent_color_ratio:.2f}%)."
                 )
-            return False
+            return False, {}
 
-        return True
+        return True, {
+            "white_pixels_ratio": white_pixels_ratio,
+            "most_frequent_color_ratio": most_frequent_color_ratio,
+            "hash": hash,
+        }
 
 
 def main(args):
@@ -154,6 +160,8 @@ def main(args):
     os.makedirs(path, exist_ok=True)
     os.makedirs(os.path.join(path, "repos"), exist_ok=True)
     os.makedirs(os.path.join(path, "images"), exist_ok=True)
+    metadata_path = os.path.join(path, "metadata")
+    os.makedirs(metadata_path, exist_ok=True)
 
     # Variables to store the results
     num_websites_collected: int = 0
@@ -189,6 +197,7 @@ def main(args):
             repo_path = os.path.join(path, "repos", repo_name)
             clone_url = repo["clone_url"]
             port = 4000
+            metadata = {**repo, "repo_name": repo_name, "repo_path": repo_path}
             print(f"Cloning {clone_url} to {repo_path}")
             try:
                 clone_repo(clone_url, os.path.join(path, "repos"), repo_name)
@@ -197,10 +206,13 @@ def main(args):
                 os.system(f"rm -rf {repo_path}")  # Delete the repository
                 continue
 
-            if not filter_repo(repo_path):
+            # Filter the repository
+            filter_success, filter_results = filter_repo(repo_path)
+            if not filter_success:
                 print(f"{repo_name} does not meet the requirements. Skipping...")
                 os.system(f"rm -rf {repo_path}")  # Delete the repository
                 continue
+            metadata["file_filter_results"] = filter_results
 
             # Start the Jekyll server
             server = JekyllServer(repo_path, verbose=True)
@@ -227,11 +239,15 @@ def main(args):
                 continue
 
             # Open the image and check for duplicates or images with too many white / background pixels
-            if not image_filter.check_image(image_path):
+            image_filter_success, image_filter_results = image_filter.check_image(
+                image_path
+            )
+            if not image_filter_success:
                 os.remove(image_path)  # Delete the screenshot
                 server.stop()
                 os.system(f"rm -rf {repo_path}")
                 continue
+            metadata["image_filter_results"] = image_filter_results
 
             # Print the actions performed
             if actions:
@@ -246,6 +262,12 @@ def main(args):
             # Delete build files
             os.system(f"rm -rf {repo_path}/_site")
             os.system(f"rm -rf {repo_path}/.jekyll-cache")
+
+            # Save the metadata
+            metadata_file = os.path.join(metadata_path, f"{repo_name}.json")
+            with open(metadata_file, "w") as f:
+                # Format as a nice JSON file
+                f.write(json.dumps(metadata, indent=4))
 
 
 def parse_args():
