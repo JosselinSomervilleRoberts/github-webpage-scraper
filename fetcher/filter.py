@@ -91,13 +91,13 @@ class RepoFilterParams:
     """Whether the repository should have more than just a README file"""
     has_more_than_readme: bool = True
 
-    """The maximum number of code files in the repository (py, js, html)"""
+    """The maximum number of code files in the repository (md, js, html)"""
     max_num_files_code: int = 5
 
     """Maximum number of assets in the repository (images, videos, etc.)"""
     max_num_assets: int = 5
 
-    """The maximum number of lines in the code files. This includes all code files (py, js, html, md)"""
+    """The maximum number of lines in the code files. This includes all code files (js, html, md)"""
     max_num_lines_code: int = 1000
 
     """The maximum number of lines in CSS files"""
