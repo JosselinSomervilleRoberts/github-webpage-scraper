@@ -194,7 +194,7 @@ def main(args):
 
     # Variables to store the results
     num_websites_collected: int = 0
-    page: int = 0
+    page: int = 1
     image_filter = ImageFilter(
         max_background_percentage=args.max_background_percentage,
         verbose=True,
@@ -218,7 +218,7 @@ def main(args):
             # So we have to break down the search into multiple queries
             # Also therer could be less than 1000 results
             date_start, date_next = previous_dates(date_start, date_next, args)
-            page = 0
+            page = 1
         else:
             page += 1
         print(f"Page {page} of the search results for {date_start} to {date_next}")
@@ -240,7 +240,7 @@ def main(args):
                 # We probably reached the end of the results for these dates
                 print(f"Found error 422: {e}")
                 date_start, date_next = previous_dates(date_start, date_next, args)
-                page = 0
+                page = 1
                 time.sleep(30)  # Just in case we have a rate limit
                 continue
 
