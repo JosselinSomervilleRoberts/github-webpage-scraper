@@ -104,7 +104,9 @@ class RepoFilterParams:
     max_num_lines_style: int = 2000
 
 
-def filter_repo(repo_path: str, params: RepoFilterParams = RepoFilterParams()) -> Tuple[bool, Dict[str, Dict[str, int]]
+def filter_repo(
+    repo_path: str, params: RepoFilterParams = RepoFilterParams()
+) -> Tuple[bool, Dict[str, Dict[str, int]]]:
     """Filter a repository based on the parameters
 
     Args:

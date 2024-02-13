@@ -157,6 +157,8 @@ class ImageFilter:
 def main(args):
     file_path: str = os.path.dirname(os.path.realpath(__file__))
     path = os.path.join(file_path, args.save_path)
+    if args.query_language is not None:
+        path = os.path.join(path, args.query_language)
     os.makedirs(path, exist_ok=True)
     os.makedirs(os.path.join(path, "repos"), exist_ok=True)
     os.makedirs(os.path.join(path, "images"), exist_ok=True)
@@ -170,6 +172,8 @@ def main(args):
         max_background_percentage=args.max_background_percentage,
         verbose=True,
     )
+
+    users = set()
 
     while num_websites_collected < args.num_websites_desired:
         page += 1
@@ -191,6 +195,7 @@ def main(args):
         for repo in enumerate(repos):
             print("\n" + "=" * 50)
             repo = repo[1]
+            print(f"Processing repository {repo}")
             repo_name = (
                 f"{num_websites_collected}_{repo['full_name'].replace('/', '_')}"
             )
@@ -198,6 +203,14 @@ def main(args):
             clone_url = repo["clone_url"]
             port = 4000
             metadata = {**repo, "repo_name": repo_name, "repo_path": repo_path}
+
+            # CHeck if we did not already collect from this user
+            user = repo["owner"]["login"]
+            if user in users:
+                print(f"Already collected from {user}. Skipping...")
+                continue
+            users.add(user)
+
             print(f"Cloning {clone_url} to {repo_path}")
             try:
                 clone_repo(clone_url, os.path.join(path, "repos"), repo_name)
