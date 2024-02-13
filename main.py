@@ -201,6 +201,7 @@ def main(args):
     )
 
     users = set()
+    repos = set()
 
     date_next = datetime.datetime.now()
     date_start = max(
@@ -248,20 +249,29 @@ def main(args):
         for repo in enumerate(repos):
             print("\n" + "=" * 50)
             repo = repo[1]
-            repo_name = (
-                f"{num_websites_collected}_{repo['full_name'].replace('/', '_')}"
+            name = (
+                repo["full_name"]
+                .replace("/", "_")
+                .replace(".github.io", "")
+                .replace(".", "_")
             )
+            repo_name = f"{num_websites_collected}_{name}"
             repo_path = os.path.join(path, "repos", repo_name)
             clone_url = repo["clone_url"]
             port = args.port
             metadata = {**repo, "repo_name": repo_name, "repo_path": repo_path}
 
-            # CHeck if we did not already collect from this user
+            # Check if we did not already collect from this user
             user = repo["owner"]["login"]
             if user in users:
                 print(f"Already collected from {user}. Skipping...")
                 continue
-            users.add(user)
+
+            # Check if we have already tested this repo
+            if name in repos:
+                print(f"Alrwady tried the repo {name}")
+                continue
+            repos.add(name)
 
             print(f"Cloning {clone_url} to {repo_path}")
             try:
@@ -329,6 +339,7 @@ def main(args):
             os.system(f"rm -rf {repo_path}/.jekyll-cache")
 
             # Save the metadata
+            users.add(user)
             metadata_file = os.path.join(metadata_path, f"{repo_name}.json")
             with open(metadata_file, "w") as f:
                 # Format as a nice JSON file
